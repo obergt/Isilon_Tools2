@@ -38,6 +38,7 @@ class Platform(object):
         r = self.api_call("GET", self.platform_url + "/zones")
         data = r.json()
         zones = []
+        rList = []
         for obj in data['zones']:
             zone = obj['zone_id'], obj['name']
             zones.append(zone)
@@ -47,21 +48,34 @@ class Platform(object):
                     if type == 'shares':
                         if resume == None:
                             r = self.api_call("GET", self.platform_url + "/protocols/smb/shares?zone="+zone[1])
+                            rList.append(r)
                         else:
                             r = self.api_call("GET", self.platform_url + "/protocols/smb/shares?zone="+zone[1]+"&resume="+resume)
+                            rList.append(r)
                     elif type == 'exports':
                         if resume == None:
                             r = self.api_call("GET", self.platform_url + "/protocols/nfs/exports?zone="+zone[1])
+                            rList.append(r)
                         else:
                             r = self.api_call("GET", self.platform_url + "/protocols/nfs/exports?zone="+zone[1]+"&resume="+resume)
+                            rList.append(r)
             elif type == 'quotas':
                 if resume == None:
                     r = self.api_call("GET", self.platform_url + "/quota/quotas/")
+                    rList.append(r)
                 else:
                     r = self.api_call("GET", self.platform_url + "/quota/quotas?resume="+resume)
+                    rList.append(r)
             else:
                 self.log.exception("illegal type!")
-            data = r.json()
+            r1 = {}
+            for rItem in range(len(rList)):
+                r2 = rList.pop().json()
+                if not r1:
+                    r1.update(r2)
+                else:
+                    r1[type] = r1[type] + r2[type]
+            data = r1
             for obj in data[type]:
                 if type == 'exports':
                     obj['zid'] = zone[0]
