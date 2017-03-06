@@ -69,7 +69,7 @@ class Platform(object):
             else:
                 self.log.exception("illegal type!")
             r1 = {}
-            for rItem in rList:
+            for rItem in range(len(rList)):
                 r2 = rList.pop().json()
                 if not r1:
                     r1.update(r2)
