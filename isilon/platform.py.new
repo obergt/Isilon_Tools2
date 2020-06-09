@@ -59,31 +59,14 @@ class Platform(object):
                     r = self.api_call("GET", self.platform_url + "/quota/quotas/")
                 else:
                     r = self.api_call("GET", self.platform_url + "/quota/quotas?resume="+resume)
-                data = r.json()
-                for quota in data['quotas']:
-                    if quota['notifications'] == 'custom':
-                      r2 = self.api_call("GET", self.platform_url + "/quota/quotas/"+quota['id']+"/notifications")
-                      quota['notifications_data'] = r2.json()['notifications']
             elif type == 'schedules':
                 if resume == None:
                     r = self.api_call("GET", self.platform_url + "/snapshot/schedules/")
                 else:
                     r = self.api_call("GET", self.platform_url + "/snapshot/schedules?resume="+resume)
-                data = r.json()
-            elif type == 'policies':
-                if resume == None:
-                    r = self.api_call("GET", self.platform_url + "/sync/policies/")
-                else:
-                    r = self.api_call("GET", self.platform_url + "/sync/policies?resume="+resume)
-                data = r.json()
-            elif type == 'pools':
-                if resume == None:
-                    r = self.api_call("GET", self.platform_url + "/network/pools")
-                else:
-                    r = self.api_call("GET", self.platform_url + "/network/pools?resume="+resume)
-                data = r.json()
             else:
                 self.log.exception("illegal type!")
+            data = r.json()
             for obj in data[type]:
                 if type == 'exports':
                     obj['zid'] = zone[0]
@@ -97,11 +80,7 @@ class Platform(object):
                     self.log.log(logging.INFO,"Backing up quota on path %s type: %s", obj['path'], obj['type'])
                 if type == 'schedules':
                    self.log.log(logging.INFO,"Backing up snapshot schedule name %s path: %s", obj['name'], obj['path'])
-                if type == 'policies':
-                   self.log.log(logging.INFO,"Backing sync policy name %s path: %s", obj['name'], obj['source_root_path'])
-                if type == 'pools':
-                   self.log.log(logging.INFO,"Backing Network config %s", obj['name'])
-            count += 1
+                count += 1
             resume = data['resume']
             if resume == None:
                 break
@@ -154,9 +133,6 @@ class Platform(object):
             del obj['thresholds']['advisory_last_exceeded']
             del obj['thresholds']['advisory_exceeded']
             del obj['notifications']
-            # We also ignore notifications_data, for now
-            if 'notifications_data' in obj:
-                del obj['notifications_data']
             params = json.dumps(obj)
             r = self.api_call("POST", self.platform_url + "/quota/quotas/", data=params)
         elif type == 'schedules':
@@ -164,7 +140,7 @@ class Platform(object):
             del obj['next_snapshot']
             del obj['id']
             params = json.dumps(obj)
-            r = self.api_call("POST", self.platform_url + "/snapshot/schedules/",data=params)
+            r - self.api_call("POST", self.platform_url + "/snapshot/schedule/",data=params)
         return
 
     def delete_object(self, type):

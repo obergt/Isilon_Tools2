@@ -33,13 +33,9 @@ class Session(object):
     def __init__(self, clustername, username, password, services):
         self.log = logging.getLogger('logger_agent')
         self.log.addHandler(logging.NullHandler())
-        try:
-            self.ip = socket.gethostbyname(clustername)
-        except:
-            self.log.critical('Oops! session could not be open, verify the IP address is correct!')
-            self.log.info('Exiting..')
-            raise Exception('Oops! session could not be open, verify the IP address is correct!')
-        self.url = "https://" + self.ip + ':8080'
+
+        self.clustername = clustername
+        self.url = "https://" + self.clustername + ':8080'
         self.session_url = self.url + '/session/1/session'
 
         self.username = username
@@ -94,9 +90,9 @@ class Session(object):
         elif r.status_code == 401:
             self.log_api_call(r, logging.ERROR)
             raise APIError("Authentication failure")
-        elif r.status_code == 409 or r.status_code == 500 and urlext == "/platform/1/protocols/nfs/exports":
+        elif r.status_code == 409 or r.status_code == 500 and urlext == "/platform/3/protocols/nfs/exports":
             self.log.log(logging.INFO, r.text)
-        elif r.status_code > 409 and not r.status_code == 500 and urlext == "/platform/1/protocols/nfs/exports":
+        elif r.status_code > 409 and not r.status_code == 500 and urlext == "/platform/3/protocols/nfs/exports":
             self.log_api_call(r, logging.ERROR)
             message = "API Error: %s" % r.text
             raise APIError(message)
@@ -119,6 +115,8 @@ class Session(object):
         sessionjson = json.dumps({'username': self.username, 'password': self.password, 'services': self.services})
         try:
             r = self.s.post(self.session_url, data=sessionjson)
+            self.s.headers.update({'X-CSRF-Token': r.cookies['isicsrf'],
+                                   'Referer': self.url})
         except:
             self.log.log(logging.ERROR, "Max retries exceeded with url.")
             raise Exception("Max retries exceeded with url.")

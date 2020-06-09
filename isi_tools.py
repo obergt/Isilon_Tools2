@@ -24,41 +24,29 @@ import logging
 import time
 import argparse
 import json
+import os
 from isilon.exceptions import Syntax
 
-tm = time.localtime(time.time())
+formatted_time = time.strftime('%Y-%m-%d_%H-%M')
 # Set up a specific logger with our desired output level
 my_logger = logging.getLogger('logger_agent')
 
 def backup(api, args):
     my_logger.info("Backup operation started on Isilon...")
     if args.type == "all":
-        types = ['shares', 'exports', 'quotas']
-        for item in types:
-            try:
-                bckfile = open(
-                        './archive/' + item + '_' + str(tm[2]) + '_' + str(tm[1]) + '_' + str(tm[3]) + '_' + str(
-                        tm[4]) + '.bck', 'w')
-            except:
-                my_logger.error("Path not found, opening the backup file in current directory")
-                bckfile = open(
-                    './' + item + '_' + str(tm[2]) + '_' + str(tm[1]) + '_' + str(tm[3]) + '_' + str(tm[4]) + '.bck', 'w')
-            my_logger.info("Opening backup file " + bckfile.name + ".")
-            objects = api.platform.get_object(item)
-            bckfile.write(objects[0])
-            my_logger.info("Total objects: " + str(objects[1]))
-            my_logger.info("Closing backup file " + bckfile.name)
+        types = ['shares', 'exports', 'quotas', 'schedules', 'policies', 'pools']
     else:
+        types = [args.type]
+    for item in types:
         try:
             bckfile = open(
-                    './archive/' + args.type + '_' + str(tm[2]) + '_' + str(tm[1]) + '_' + str(tm[3]) + '_' + str(
-                    tm[4]) + '.bck', 'w')
+                    './archive/' + item + '_' + args.clustername + '_' + formatted_time + '.bck', 'w')
         except:
             my_logger.error("Path not found, opening the backup file in current directory")
             bckfile = open(
-                './' + args.type + '_' + str(tm[2]) + '_' + str(tm[1]) + '_' + str(tm[3]) + '_' + str(tm[4]) + '.bck', 'w')
+                './' + item + '_' + args.clustername + '_' + formatted_time + '.bck', 'w')
         my_logger.info("Opening backup file " + bckfile.name + ".")
-        objects = api.platform.get_object(args.type)
+        objects = api.platform.get_object(item)
         bckfile.write(objects[0])
         my_logger.info("Total objects: " + str(objects[1]))
         my_logger.info("Closing backup file " + bckfile.name)
@@ -77,6 +65,7 @@ def restore(api, args):
     for line in bckfile:
         line = line.replace('\n', '')
         obj = json.loads(line)
+        #my_logger.info("Object ID " + obj.id + "\n")
         api.platform.set_object(obj, args.type)
         count += 1
     my_logger.info("Total objects: " + str(count))
@@ -88,14 +77,12 @@ def restore(api, args):
 def delete(api, args):
     my_logger.info("Delete operation started on Isilon...")
     if args.type == "all":
-        types = ['shares', 'exports', 'quotas']
-        for item in types:
-            my_logger.info("Start deleting all "+item)
-            objects = api.platform.delete_object(item)
-            my_logger.info("Delete operation on Isilon was finished!")
+        types = ['shares', 'exports', 'quotas', 'schedules']
     else:
-        my_logger.info("Start deleting all "+args.type)
-        objects = api.platform.delete_object(args.type)
+        types = [args.type]
+    for item in types:
+        my_logger.info("Start deleting all "+item)
+        objects = api.platform.delete_object(item)
         my_logger.info("Delete operation on Isilon was finished!")
     return
 
@@ -107,13 +94,18 @@ def main():
 
     parser.add_argument("-v", "--verbose", help="detailed logging.", action='store_true', required=False )
     group1 = parser.add_argument_group("Required")
-    group1.add_argument("-t", "--type", help="specifies the type of the object [shares, export, quotas, all].",
-                        action='store', required=True, choices=('shares', 'exports', 'quotas', 'all'), metavar='TYPE')
+    group1.add_argument("-t", "--type", help="specifies the type of the object [shares, export, quotas, schedules, policies, pools, all].",
+                        action='store', required=True, choices=('shares', 'exports', 'quotas', 'schedules', 'policies', 'pools', 'all'), metavar='TYPE')
     group1.add_argument("-f", "--file", help="Path to the backup file for restore operation.", action='store', required=False)
     group1.add_argument("-u", "--username", help="Username for login.", action='store', required=True, dest='user')
-    group1.add_argument("-pw", "--password", help="Password to login.", required=True, dest='password')
+    group1.add_argument("-pw", "--password", help="Password to login.", dest='password')
     group1.add_argument("-n", "--name", help="Cluster name to connect.", action='store', required=True, dest='clustername')
     args = parser.parse_args()
+    
+    password = args.password
+    
+    if "ISI_TOOLS_PASSWORD" in os.environ:
+        password = os.environ["ISI_TOOLS_PASSWORD"]
 
     LOG_FILENAME = args.type + '.log'
 
@@ -125,6 +117,9 @@ def main():
     handler.setFormatter(formatter)
     my_logger.addHandler(handler)
 
+    if not password:
+        my_logger.error("--password (or ISI_TOOLS_PASSWORD environment variable) is required.")
+        raise Syntax("--password (or ISI_TOOLS_PASSWORD environment variable) is required.")
     if args.action[0] == 'restore' and args.file == None:
         my_logger.error("--file is required in restore operation.")
         raise Syntax("--file is required in Restore operation.")
@@ -136,7 +131,7 @@ def main():
     else:
         my_logger.setLevel('INFO')
     my_logger.info('------------------------------------- Isilon Tools -------------------------------------')
-    api = isilon.API(args.clustername, args.user, args.password)
+    api = isilon.API(args.clustername, args.user, password)
     if args.action[0] == 'backup':
         backup(api, args)
     elif args.action[0] == 'restore':
